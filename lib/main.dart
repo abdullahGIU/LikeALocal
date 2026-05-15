@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:provider/provider.dart';
 import 'firebase_options.dart';
+
+// Core
+import 'core/theme/app_theme.dart';
+import 'core/providers/auth_provider.dart';
+import 'core/providers/place_provider.dart';
+import 'core/providers/user_provider.dart';
+
+// Widgets
+import 'widgets/bottom_nav_bar.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -9,7 +19,16 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  runApp(const LikeALocalApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => PlaceProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+      ],
+      child: const LikeALocalApp(),
+    ),
+  );
 }
 
 class LikeALocalApp extends StatelessWidget {
@@ -20,21 +39,8 @@ class LikeALocalApp extends StatelessWidget {
     return MaterialApp(
       title: 'LikeALocal',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF00BC7D),
-        ),
-        useMaterial3: true,
-      ),
-      home: const Scaffold(
-        body: Center(
-          child: Text(
-            'LikeALocal Firebase Connected',
-            style: TextStyle(fontSize: 22),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ),
+      theme: AppTheme.lightTheme,
+      home: const MainScreen(),
     );
   }
 }
