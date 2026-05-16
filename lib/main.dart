@@ -10,7 +10,7 @@ import 'core/providers/place_provider.dart';
 import 'core/providers/user_provider.dart';
 
 // Widgets
-import 'widgets/bottom_nav_bar.dart';
+import 'screens/auth/auth_wrapper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +40,7 @@ class LikeALocalApp extends StatelessWidget {
       title: 'LikeALocal',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const MainScreen(),
+      home: const AuthWrapper(),
     );
   }
 }
