@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>LikeALocal needs your location to show nearby places and distances.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>LikeALocal needs your location to show nearby places and distances.</string>
 </dict>
 </plist>

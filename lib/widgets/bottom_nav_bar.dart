@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../core/constants/app_colors.dart';
+import '../core/providers/main_navigation_provider.dart';
+import '../core/providers/place_provider.dart';
 import '../screens/home/home_screen.dart';
 import '../screens/search/search_screen.dart';
 import '../screens/map/map_screen.dart';
@@ -14,32 +17,34 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _selectedIndex = 0;
-
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const SearchScreen(),
-    const MapScreen(),
-    const ChatsScreen(),
-    const ProfileScreen(),
+  final List<Widget> _screens = const [
+    HomeScreen(),
+    SearchScreen(),
+    MapScreen(),
+    ChatsScreen(),
+    ProfileScreen(),
   ];
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<PlaceProvider>().refresh();
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final nav = context.watch<MainNavigationProvider>();
+
     return Scaffold(
       body: IndexedStack(
-        index: _selectedIndex,
+        index: nav.currentIndex,
         children: _screens,
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
+        currentIndex: nav.currentIndex,
+        onTap: (index) => context.read<MainNavigationProvider>().setIndex(index),
         type: BottomNavigationBarType.fixed,
         selectedItemColor: AppColors.primaryGreen,
         unselectedItemColor: AppColors.textSecondary,
