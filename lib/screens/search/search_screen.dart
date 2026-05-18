@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/models/place.dart';
+import '../../core/providers/place_provider.dart';
 import '../../core/providers/search_provider.dart';
 import '../../widgets/filter_bottom_sheet.dart';
 import '../../widgets/place_card.dart';
+import '../places/place_details_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -15,7 +18,13 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   late final TextEditingController _searchController;
 
-  static const _categories = ['All', 'Cafés', 'Restaurants', 'Parks'];
+  static const _categories = [
+    'All',
+    'Cafés',
+    'Restaurants',
+    'Parks',
+    'Museums',
+  ];
 
   @override
   void initState() {
@@ -30,6 +39,65 @@ class _SearchScreenState extends State<SearchScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _showHistorySheet() async {
+    final search = context.read<SearchProvider>();
+    await search.reloadHistory();
+
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _PlacesListSheet(
+        title: 'Recently viewed',
+        emptyMessage: 'Places you open will appear here.',
+        places: search.viewedPlacesHistory,
+        onRemove: search.removeHistoryPlace,
+        onPlaceTap: (place) {
+          Navigator.pop(ctx);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PlaceDetailsScreen(place: place),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _showPinnedSheet() async {
+    await context.read<PlaceProvider>().refresh();
+    if (!mounted) return;
+
+    final pinned = context.read<PlaceProvider>().pinnedPlaces;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _PlacesListSheet(
+        title: 'Pinned places',
+        emptyMessage: 'Pin places from their detail page to see them here.',
+        places: pinned,
+        leadingIcon: Icons.push_pin,
+        iconColor: Colors.amber.shade800,
+        onPlaceTap: (place) {
+          Navigator.pop(ctx);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PlaceDetailsScreen(place: place),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -70,32 +138,55 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
           SizedBox(
             height: 40,
-            child: ListView.separated(
+            child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _categories.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                final category = _categories[index];
-                final isSelected = search.selectedCategory == category;
-                return FilterChip(
-                  label: Text(category),
-                  selected: isSelected,
-                  showCheckmark: false,
-                  selectedColor: AppColors.primaryGreen,
-                  labelStyle: TextStyle(
-                    color: isSelected ? Colors.white : AppColors.textPrimary,
-                    fontWeight: FontWeight.w600,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ActionChip(
+                    avatar: const Icon(Icons.history, size: 18),
+                    label: const Text('History'),
+                    backgroundColor: Colors.white,
+                    side: BorderSide(color: Colors.grey.shade300),
+                    onPressed: _showHistorySheet,
                   ),
-                  backgroundColor: Colors.white,
-                  side: BorderSide(
-                    color: isSelected
-                        ? AppColors.primaryGreen
-                        : Colors.grey.shade300,
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ActionChip(
+                    avatar: Icon(Icons.push_pin, size: 18, color: Colors.amber.shade800),
+                    label: const Text('Pinned'),
+                    backgroundColor: Colors.white,
+                    side: BorderSide(color: Colors.grey.shade300),
+                    onPressed: _showPinnedSheet,
                   ),
-                  onSelected: (_) => search.setCategory(category),
-                );
-              },
+                ),
+                ..._categories.map((category) {
+                  final isSelected = search.selectedCategory == category;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(category),
+                      selected: isSelected,
+                      showCheckmark: false,
+                      selectedColor: AppColors.primaryGreen,
+                      labelStyle: TextStyle(
+                        color:
+                            isSelected ? Colors.white : AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      backgroundColor: Colors.white,
+                      side: BorderSide(
+                        color: isSelected
+                            ? AppColors.primaryGreen
+                            : Colors.grey.shade300,
+                      ),
+                      onSelected: (_) => search.setCategory(category),
+                    ),
+                  );
+                }),
+              ],
             ),
           ),
           Padding(
@@ -136,6 +227,77 @@ class _SearchScreenState extends State<SearchScreen> {
                         },
                       ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlacesListSheet extends StatelessWidget {
+  final String title;
+  final String emptyMessage;
+  final List<Place> places;
+  final void Function(Place place) onPlaceTap;
+  final void Function(String placeId)? onRemove;
+  final IconData leadingIcon;
+  final Color? iconColor;
+
+  const _PlacesListSheet({
+    required this.title,
+    required this.emptyMessage,
+    required this.places,
+    required this.onPlaceTap,
+    this.onRemove,
+    this.leadingIcon = Icons.place_outlined,
+    this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          if (places.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(emptyMessage),
+            )
+          else
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: places.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final place = places[index];
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(leadingIcon, color: iconColor),
+                    title: Text(place.name),
+                    subtitle: Text(
+                      place.address.isNotEmpty
+                          ? place.address
+                          : place.category,
+                    ),
+                    trailing: onRemove != null
+                        ? IconButton(
+                            icon: const Icon(Icons.close, size: 20),
+                            onPressed: () => onRemove!(place.id),
+                          )
+                        : const Icon(Icons.chevron_right),
+                    onTap: () => onPlaceTap(place),
+                  );
+                },
+              ),
+            ),
         ],
       ),
     );

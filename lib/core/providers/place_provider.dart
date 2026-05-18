@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/place.dart';
@@ -30,6 +31,7 @@ class PlaceProvider extends ChangeNotifier {
 
   List<Place> _allPlaces = [];
   List<Place> _nearbyPlaces = [];
+  List<Place> _pinnedPlaces = [];
   Position? _userPosition;
   bool _isLoading = false;
   String? _errorMessage;
@@ -37,6 +39,7 @@ class PlaceProvider extends ChangeNotifier {
 
   List<Place> get allPlaces => _allPlaces;
   List<Place> get nearbyPlaces => _nearbyPlaces;
+  List<Place> get pinnedPlaces => _pinnedPlaces;
   Position? get userPosition => _userPosition;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -47,6 +50,11 @@ class PlaceProvider extends ChangeNotifier {
         for (final category in defaultCategories)
           category: _allPlaces.where((p) => p.category == category).length,
       };
+
+  List<Place> placesForCategory(String? category) {
+    if (category == null) return List<Place>.from(_nearbyPlaces);
+    return _nearbyPlaces.where((p) => p.category == category).toList();
+  }
 
   Future<void> refresh() async {
     _isLoading = true;
@@ -60,6 +68,8 @@ class PlaceProvider extends ChangeNotifier {
         _locationMessage =
             'Enable location to see real cafés and places near you.';
       }
+
+      await _loadPinnedPlaces();
 
       final firestorePlaces = await _firestoreService.fetchPlaces();
       var discoveredPlaces = <Place>[];
@@ -75,7 +85,7 @@ class PlaceProvider extends ChangeNotifier {
         }
       }
 
-      _allPlaces = _mergePlaces(firestorePlaces, discoveredPlaces);
+      _allPlaces = _mergePlaces(firestorePlaces, discoveredPlaces, _pinnedPlaces);
       _attachDistances();
       _nearbyPlaces = _filterNearby(_allPlaces);
     } catch (_) {
@@ -86,9 +96,27 @@ class PlaceProvider extends ChangeNotifier {
     }
   }
 
-  List<Place> _mergePlaces(List<Place> firestore, List<Place> discovered) {
+  Future<void> _loadPinnedPlaces() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      _pinnedPlaces = [];
+      return;
+    }
+
+    final pins = await _firestoreService
+        .streamPinnedPlaces(userId)
+        .first
+        .timeout(const Duration(seconds: 8), onTimeout: () => []);
+    _pinnedPlaces = pins;
+  }
+
+  List<Place> _mergePlaces(
+    List<Place> firestore,
+    List<Place> discovered,
+    List<Place> pinned,
+  ) {
     final merged = <String, Place>{};
-    for (final place in [...firestore, ...discovered]) {
+    for (final place in [...firestore, ...discovered, ...pinned]) {
       merged[place.id] = place;
     }
     return merged.values.toList();
@@ -97,6 +125,18 @@ class PlaceProvider extends ChangeNotifier {
   void _attachDistances() {
     if (_userPosition == null) return;
     _allPlaces = _allPlaces
+        .map(
+          (place) => place.copyWith(
+            distanceKm: _locationService.distanceInKm(
+              fromLatitude: _userPosition!.latitude,
+              fromLongitude: _userPosition!.longitude,
+              toLatitude: place.latitude,
+              toLongitude: place.longitude,
+            ),
+          ),
+        )
+        .toList();
+    _pinnedPlaces = _pinnedPlaces
         .map(
           (place) => place.copyWith(
             distanceKm: _locationService.distanceInKm(

@@ -33,8 +33,12 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
   void initState() {
     super.initState();
     final provider = context.read<SearchProvider>();
-    _budget = _capitalize(provider.selectedBudget);
-    _atmosphere = _capitalize(provider.selectedAtmosphere);
+    _budget = _capitalize(provider.selectedBudget == 'any'
+        ? 'Any'
+        : provider.selectedBudget);
+    _atmosphere = _capitalize(provider.selectedAtmosphere == 'any'
+        ? 'Any'
+        : provider.selectedAtmosphere);
     _distanceKm = provider.maxDistanceKm;
   }
 
@@ -129,8 +133,9 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
             child: ElevatedButton(
               onPressed: () {
                 context.read<SearchProvider>().applyAdvancedFilters(
-                      budget: _budget,
-                      atmosphere: _atmosphere,
+                      budget: _budget == 'Any' ? 'any' : _budget.toLowerCase(),
+                      atmosphere:
+                          _atmosphere == 'Any' ? 'any' : _atmosphere.toLowerCase(),
                       maxDistanceKm: _distanceKm,
                     );
                 Navigator.pop(context);

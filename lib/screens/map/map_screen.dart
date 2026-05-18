@@ -10,6 +10,7 @@ import '../../core/providers/main_navigation_provider.dart';
 import '../../core/providers/map_provider.dart';
 import '../../core/models/place.dart';
 import '../places/place_details_screen.dart';
+import '../../widgets/place_image.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -48,10 +49,35 @@ class _MapScreenState extends State<MapScreen> {
 
     final nav = _navigation;
     if (nav == null) return;
-    if (nav.currentIndex == _mapTabIndex && nav.mapNearMeOnOpen) {
-      if (nav.consumeMapNearMeFlag()) {
-        context.read<MapProvider>().enableNearMeFilter();
+    if (nav.currentIndex != _mapTabIndex) return;
+
+    final map = context.read<MapProvider>();
+
+    final category = nav.consumeMapCategoryFilter();
+    if (category != null) {
+      map.setCategoryFilter(category);
+    }
+
+    if (nav.consumeMapShowPinnedOnly()) {
+      map.setShowPinnedOnly(true);
+    }
+
+    final focusId = nav.consumeMapFocusPlaceId();
+    if (focusId != null) {
+      Place? target;
+      for (final place in [...map.visiblePlaces, ...map.pinnedPlaces]) {
+        if (place.id == focusId) {
+          target = place;
+          break;
+        }
       }
+      if (target != null) {
+        map.focusOnPlace(target);
+      }
+    }
+
+    if (nav.mapNearMeOnOpen && nav.consumeMapNearMeFlag()) {
+      map.enableNearMeFilter();
     }
   }
 
@@ -69,6 +95,41 @@ class _MapScreenState extends State<MapScreen> {
     );
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _focusOnUserLocation() async {
+    final map = context.read<MapProvider>();
+    final result = await map.focusOnUser();
+    if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    switch (result) {
+      case FocusUserResult.focused:
+        messenger.hideCurrentSnackBar();
+        return;
+      case FocusUserResult.mapLoading:
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Centering map on your location…'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return;
+      case FocusUserResult.locationUnavailable:
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              map.errorMessage ??
+                  'Enable location services to center the map on you.',
+            ),
+            action: SnackBarAction(
+              label: 'Retry',
+              onPressed: _focusOnUserLocation,
+            ),
+          ),
+        );
+        return;
     }
   }
 
@@ -126,7 +187,7 @@ class _MapScreenState extends State<MapScreen> {
                     const SizedBox(width: 10),
                     _MapIconButton(
                       icon: Icons.my_location,
-                      onPressed: map.focusOnUser,
+                      onPressed: _focusOnUserLocation,
                     ),
                   ],
                 ),
@@ -197,24 +258,52 @@ class _MapScreenState extends State<MapScreen> {
                       MarkerLayer(
                         markers: [
                           for (final place in map.visiblePlaces)
-                            Marker(
-                              point:
-                                  LatLng(place.latitude, place.longitude),
-                              width: 48,
-                              height: 48,
-                              child: GestureDetector(
-                                onTap: () => map.selectPlace(place),
-                                child: Icon(
-                                  Icons.location_on,
-                                  size: 44,
-                                  color: map.selectedPlace?.id == place.id
-                                      ? AppColors.tertiaryBlue
-                                      : AppColors.primaryGreen,
+                            if (!map.pinnedPlaces
+                                .any((pinned) => pinned.id == place.id))
+                              Marker(
+                                point: LatLng(
+                                  place.latitude,
+                                  place.longitude,
+                                ),
+                                width: 48,
+                                height: 48,
+                                child: GestureDetector(
+                                  onTap: () => map.selectPlace(place),
+                                  child: Icon(
+                                    Icons.location_on,
+                                    size: 44,
+                                    color: map.selectedPlace?.id == place.id
+                                        ? AppColors.tertiaryBlue
+                                        : AppColors.primaryGreen,
+                                  ),
                                 ),
                               ),
-                            ),
                         ],
                       ),
+                      if (map.pinnedPlaces.isNotEmpty)
+                        MarkerLayer(
+                          markers: [
+                            for (final place in map.pinnedPlaces)
+                              Marker(
+                                point: LatLng(
+                                  place.latitude,
+                                  place.longitude,
+                                ),
+                                width: 52,
+                                height: 52,
+                                child: GestureDetector(
+                                  onTap: () => map.selectPlace(place),
+                                  child: Icon(
+                                    Icons.push_pin,
+                                    size: 46,
+                                    color: map.selectedPlace?.id == place.id
+                                        ? Colors.deepOrange
+                                        : Colors.amber.shade800,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                     ],
                   )
                 else if (!ApiKeys.hasMapboxToken)
@@ -236,11 +325,67 @@ class _MapScreenState extends State<MapScreen> {
                       color: AppColors.primaryGreen,
                     ),
                   ),
-                if (map.errorMessage != null)
+                if (map.categoryFilter != null || map.showPinnedOnly)
                   Positioned(
                     left: 16,
                     right: 16,
                     top: 12,
+                    child: Material(
+                      elevation: 3,
+                      borderRadius: BorderRadius.circular(20),
+                      color: AppColors.primaryGreen,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              map.showPinnedOnly
+                                  ? Icons.push_pin
+                                  : Icons.filter_alt,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              map.showPinnedOnly
+                                  ? 'Pinned places'
+                                  : map.categoryFilter!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: () {
+                                if (map.showPinnedOnly) {
+                                  map.setShowPinnedOnly(false);
+                                } else {
+                                  map.setCategoryFilter(null);
+                                }
+                              },
+                              child: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                if (map.errorMessage != null)
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    top: map.categoryFilter != null || map.showPinnedOnly
+                        ? 56
+                        : 12,
                     child: Material(
                       elevation: 4,
                       borderRadius: BorderRadius.circular(12),
@@ -278,6 +423,26 @@ class _MapScreenState extends State<MapScreen> {
                   bottom: map.selectedPlace != null ? 180 : 24,
                   child: Column(
                     children: [
+                      FloatingActionButton.small(
+                        heroTag: 'zoom_in',
+                        backgroundColor: Colors.white,
+                        onPressed: map.zoomIn,
+                        child: const Icon(
+                          Icons.add,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      FloatingActionButton.small(
+                        heroTag: 'zoom_out',
+                        backgroundColor: Colors.white,
+                        onPressed: map.zoomOut,
+                        child: const Icon(
+                          Icons.remove,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
                       FloatingActionButton(
                         heroTag: 'near_me',
                         backgroundColor: AppColors.primaryGreen,
@@ -351,12 +516,22 @@ class _PlaceMapCard extends StatelessWidget {
     return Material(
       elevation: 8,
       borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                height: 120,
+                width: double.infinity,
+                child: PlaceImage(place: place),
+              ),
+            ),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(

@@ -1,11 +1,13 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/providers/search_provider.dart';
 import '../../core/models/place.dart';
 import '../../core/models/review.dart';
 import '../../core/services/firestore_service.dart';
 import '../chat/chat_room_screen.dart';
+import '../../widgets/place_image.dart';
 
 class PlaceDetailsScreen extends StatefulWidget {
   final Place place;
@@ -25,6 +27,10 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
   void initState() {
     super.initState();
     _loadPinState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<SearchProvider>().recordPlaceView(widget.place);
+    });
   }
 
   Future<void> _loadPinState() async {
@@ -46,6 +52,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
       );
       return;
     }
+    final wasPinned = _isPinned;
 
     setState(() => _pinLoading = true);
     try {
@@ -53,7 +60,20 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
         userId: userId,
         place: widget.place,
       );
-      if (mounted) setState(() => _isPinned = !_isPinned);
+      if (mounted) {
+        setState(() => _isPinned = !wasPinned);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                wasPinned
+                    ? 'Place unpinned successfully.'
+                    : 'Place pinned successfully.',
+              ),
+            ),
+          );
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -74,16 +94,10 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 240,
+            expandedHeight: 260,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
-              background: place.imageUrls.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: place.imageUrls.first,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => _heroPlaceholder(),
-                    )
-                  : _heroPlaceholder(),
+              background: _PlacePhotoGallery(place: place),
             ),
           ),
           SliverToBoxAdapter(
@@ -137,7 +151,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                           icon: Icon(
                             _isPinned ? Icons.push_pin : Icons.push_pin_outlined,
                           ),
-                          label: Text(_isPinned ? 'Pinned' : 'Pin Place'),
+                          label: Text(_isPinned ? 'Unpin' : 'Pin Place'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.primaryGreen,
                             side: const BorderSide(color: AppColors.primaryGreen),
@@ -236,15 +250,6 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
     );
   }
 
-  Widget _heroPlaceholder() {
-    return Container(
-      color: Colors.grey.shade300,
-      child: const Center(
-        child: Icon(Icons.image, size: 64, color: Colors.white70),
-      ),
-    );
-  }
-
   Widget _tipCard(String tip) {
     return Container(
       width: double.infinity,
@@ -277,7 +282,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: AppColors.primaryGreen.withOpacity(0.15),
+                  backgroundColor: AppColors.primaryGreen.withValues(alpha: 0.15),
                   child: Text(
                     review.userName.isNotEmpty
                         ? review.userName[0].toUpperCase()
@@ -320,6 +325,77 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PlacePhotoGallery extends StatefulWidget {
+  final Place place;
+
+  const _PlacePhotoGallery({required this.place});
+
+  @override
+  State<_PlacePhotoGallery> createState() => _PlacePhotoGalleryState();
+}
+
+class _PlacePhotoGalleryState extends State<_PlacePhotoGallery> {
+  late final PageController _controller;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final count = widget.place.displayImageUrls.length;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        PageView.builder(
+          controller: _controller,
+          itemCount: count,
+          onPageChanged: (i) => setState(() => _index = i),
+          itemBuilder: (context, index) {
+            return PlaceImage(
+              place: widget.place,
+              variant: index,
+            );
+          },
+        ),
+        if (count > 1)
+          Positioned(
+            bottom: 12,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(count, (i) {
+                final active = i == _index;
+                return Container(
+                  width: active ? 10 : 7,
+                  height: 7,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: active
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.5),
+                  ),
+                );
+              }),
+            ),
+          ),
+      ],
     );
   }
 }

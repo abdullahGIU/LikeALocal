@@ -1,8 +1,13 @@
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/models/place.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/main_navigation_provider.dart';
+import '../../core/services/firestore_service.dart';
 import '../auth/auth_wrapper.dart';
 import '../auth/login_screen.dart';
+import '../places/place_details_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -24,10 +29,14 @@ class ProfileScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                    ),
                   );
                 },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1D9E75)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1D9E75),
+                ),
                 child: const Text('Log In', style: TextStyle(color: Colors.white)),
               ),
             ],
@@ -36,42 +45,45 @@ class ProfileScreen extends StatelessWidget {
       );
     }
 
+    final userId = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
         centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            // Avatar
             CircleAvatar(
               radius: 40,
               backgroundColor: const Color(0xFF1D9E75),
               child: Text(
                 user.fullName.isNotEmpty ? user.fullName[0].toUpperCase() : '?',
-                style: const TextStyle(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 32,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             const SizedBox(height: 16),
-            // Name
             Text(
               user.fullName,
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
             ),
-            // Email
             Text(
               user.email,
               style: const TextStyle(fontSize: 14, color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            // Info Cards
             Card(
               child: ListTile(
-                leading: const Icon(Icons.workspace_premium, color: Color(0xFF1D9E75)),
+                leading: const Icon(Icons.workspace_premium,
+                    color: Color(0xFF1D9E75)),
                 title: const Text('Premium'),
                 trailing: user.isPremium
                     ? const Icon(Icons.check_circle, color: Color(0xFF1D9E75))
@@ -94,8 +106,87 @@ class ProfileScreen extends StatelessWidget {
                 trailing: Text(user.pinLimit.toString()),
               ),
             ),
+            if (userId != null) ...[
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'My pinned places',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      context.read<MainNavigationProvider>().openMap(
+                            pinnedOnly: true,
+                          );
+                    },
+                    child: const Text('Show all on map'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              StreamBuilder<List<Place>>(
+                stream: FirestoreService().streamPinnedPlaces(userId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final pins = snapshot.data ?? [];
+                  if (pins.isEmpty) {
+                    return const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'No pinned places yet. Open a place and tap Pin Place.',
+                        ),
+                      ),
+                    );
+                  }
+                  return Column(
+                    children: pins.map((place) {
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.push_pin,
+                            color: Colors.amber.shade800,
+                          ),
+                          title: Text(place.name),
+                          subtitle: Text(
+                            place.address.isNotEmpty
+                                ? place.address
+                                : place.category,
+                          ),
+                          trailing: const Icon(Icons.map_outlined),
+                          onTap: () {
+                            context.read<MainNavigationProvider>().openMap(
+                                  focusPlaceId: place.id,
+                                );
+                          },
+                          onLongPress: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    PlaceDetailsScreen(place: place),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+            ],
             const SizedBox(height: 32),
-            // Logout Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -104,7 +195,9 @@ class ProfileScreen extends StatelessWidget {
                   if (context.mounted) {
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(builder: (context) => const AuthWrapper()),
+                      MaterialPageRoute(
+                        builder: (context) => const AuthWrapper(),
+                      ),
                       (route) => false,
                     );
                   }

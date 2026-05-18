@@ -14,9 +14,61 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  String? _selectedCategory;
+  late final ScrollController _scrollController;
+  MainNavigationProvider? _navigation;
+  int _homeScrollNonce = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nav = context.read<MainNavigationProvider>();
+    if (_navigation != nav) {
+      _navigation?.removeListener(_onNavigationChanged);
+      _navigation = nav;
+      _homeScrollNonce = nav.homeScrollToTopNonce;
+      _navigation!.addListener(_onNavigationChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    _navigation?.removeListener(_onNavigationChanged);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onNavigationChanged() {
+    final nav = _navigation;
+    if (nav == null) return;
+    if (nav.homeScrollToTopNonce != _homeScrollNonce) {
+      _homeScrollNonce = nav.homeScrollToTopNonce;
+      _scrollToTop();
+    }
+  }
+
+  void _scrollToTop() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final home = context.watch<HomeProvider>();
+    final places = context.watch<PlaceProvider>();
+    final displayedPlaces = _selectedCategory == null
+        ? home.nearbyPlaces
+        : places.placesForCategory(_selectedCategory);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -28,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
               color: AppColors.primaryGreen,
               onRefresh: () => context.read<PlaceProvider>().refresh(),
               child: CustomScrollView(
+                controller: _scrollController,
                 slivers: [
                   SliverAppBar(
                     expandedHeight: 160,
@@ -63,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Text(
                                   'Discover hidden gems near you',
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.9),
+                                    color: Colors.white.withValues(alpha: 0.9),
                                     fontSize: 14,
                                   ),
                                 ),
@@ -90,7 +143,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.06),
+                                color: Colors.black.withValues(alpha: 0.06),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),
@@ -130,7 +183,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Expanded(
                                   child: Text(
                                     home.locationMessage!,
-                                    style: TextStyle(color: Colors.amber.shade900),
+                                    style:
+                                        TextStyle(color: Colors.amber.shade900),
                                   ),
                                 ),
                               ],
@@ -163,10 +217,17 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           TextButton(
-                            onPressed: () => context
-                                .read<MainNavigationProvider>()
-                                .openMap(nearMe: true),
-                            child: const Text('View Map'),
+                            onPressed: () {
+                              context.read<MainNavigationProvider>().openMap(
+                                    nearMe: true,
+                                    category: _selectedCategory,
+                                  );
+                            },
+                            child: Text(
+                              _selectedCategory == null
+                                  ? 'View Map'
+                                  : 'Map: $_selectedCategory',
+                            ),
                           ),
                         ],
                       ),
@@ -183,27 +244,40 @@ class _HomeScreenState extends State<HomeScreen> {
                         itemBuilder: (context, index) {
                           final entry =
                               home.trendingCategories.entries.elementAt(index);
+                          final isSelected = _selectedCategory == entry.key;
                           return _CategoryChip(
                             label: entry.key,
                             count: entry.value,
+                            isSelected: isSelected,
+                            onTap: () {
+                              setState(() {
+                                _selectedCategory =
+                                    isSelected ? null : entry.key;
+                              });
+                              context.read<MainNavigationProvider>().openMap(
+                                    category: isSelected ? null : entry.key,
+                                  );
+                            },
                           );
                         },
                       ),
                     ),
                   ),
-                  const SliverToBoxAdapter(
+                  SliverToBoxAdapter(
                     child: Padding(
-                      padding: EdgeInsets.fromLTRB(16, 24, 16, 8),
+                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
                       child: Text(
-                        'Nearby Gems',
-                        style: TextStyle(
+                        _selectedCategory == null
+                            ? 'Nearby Gems'
+                            : '$_selectedCategory near you',
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ),
-                  if (home.nearbyPlaces.isEmpty)
+                  if (displayedPlaces.isEmpty)
                     const SliverFillRemaining(
                       hasScrollBody: false,
                       child: Center(
@@ -216,10 +290,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         (context, index) {
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: PlaceCard(place: home.nearbyPlaces[index]),
+                            child: PlaceCard(place: displayedPlaces[index]),
                           );
                         },
-                        childCount: home.nearbyPlaces.length,
+                        childCount: displayedPlaces.length,
                       ),
                     ),
                   const SliverToBoxAdapter(child: SizedBox(height: 24)),
@@ -233,24 +307,38 @@ class _HomeScreenState extends State<HomeScreen> {
 class _CategoryChip extends StatelessWidget {
   final String label;
   final int count;
+  final bool isSelected;
+  final VoidCallback onTap;
 
-  const _CategoryChip({required this.label, required this.count});
+  const _CategoryChip({
+    required this.label,
+    required this.count,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8FFF5),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF00BC7D).withOpacity(0.3)),
-      ),
-      child: Text(
-        '$label ($count)',
-        style: const TextStyle(
-          color: Color(0xFF007A53),
-          fontWeight: FontWeight.w600,
-          fontSize: 13,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primaryGreen : const Color(0xFFE8FFF5),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primaryGreen
+                : const Color(0xFF00BC7D).withValues(alpha: 0.3),
+          ),
+        ),
+        child: Text(
+          '$label ($count)',
+          style: TextStyle(
+            color: isSelected ? Colors.white : const Color(0xFF007A53),
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
         ),
       ),
     );

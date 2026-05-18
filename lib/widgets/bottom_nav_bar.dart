@@ -44,7 +44,8 @@ class _MainScreenState extends State<MainScreen> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: nav.currentIndex,
-        onTap: (index) => context.read<MainNavigationProvider>().setIndex(index),
+        onTap: (index) =>
+            context.read<MainNavigationProvider>().onBottomNavTap(index),
         type: BottomNavigationBarType.fixed,
         selectedItemColor: AppColors.primaryGreen,
         unselectedItemColor: AppColors.textSecondary,

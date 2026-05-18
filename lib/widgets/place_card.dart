@@ -1,7 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../core/models/place.dart';
 import '../screens/places/place_details_screen.dart';
+import 'place_image.dart';
 
 class PlaceCard extends StatelessWidget {
   final Place place;
@@ -46,14 +46,10 @@ class PlaceCard extends StatelessWidget {
                   child: SizedBox(
                     width: 92,
                     height: 92,
-                    child: place.imageUrls.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: place.imageUrls.first,
-                            fit: BoxFit.cover,
-                            placeholder: (_, __) => _placeholderImage(),
-                            errorWidget: (_, __, ___) => _placeholderImage(),
-                          )
-                        : _placeholderImage(),
+                    child: PlaceImage(
+                      place: place,
+                      placeholder: _placeholderImage(),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
