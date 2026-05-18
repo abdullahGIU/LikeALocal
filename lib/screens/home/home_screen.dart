@@ -116,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Text(
                                   'Discover hidden gems near you',
                                   style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.9),
+                                    color: Colors.white.withOpacity(0.9),
                                     fontSize: 14,
                                   ),
                                 ),
@@ -143,7 +143,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.06),
+                                color: Colors.black.withOpacity(0.06),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),
@@ -329,7 +329,7 @@ class _CategoryChip extends StatelessWidget {
           border: Border.all(
             color: isSelected
                 ? AppColors.primaryGreen
-                : const Color(0xFF00BC7D).withValues(alpha: 0.3),
+                : const Color(0xFF00BC7D).withOpacity(0.3),
           ),
         ),
         child: Text(

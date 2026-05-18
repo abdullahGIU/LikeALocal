@@ -282,7 +282,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: AppColors.primaryGreen.withValues(alpha: 0.15),
+                  backgroundColor: AppColors.primaryGreen.withOpacity(0.15),
                   child: Text(
                     review.userName.isNotEmpty
                         ? review.userName[0].toUpperCase()
@@ -389,7 +389,7 @@ class _PlacePhotoGalleryState extends State<_PlacePhotoGallery> {
                     shape: BoxShape.circle,
                     color: active
                         ? Colors.white
-                        : Colors.white.withValues(alpha: 0.5),
+                        : Colors.white.withOpacity(0.5),
                   ),
                 );
               }),
