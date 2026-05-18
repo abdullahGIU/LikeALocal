@@ -95,6 +95,31 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> refreshUser() async {
+    try {
+      _currentUser = await _authService.getCurrentAppUser();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<bool> upgradeToPremium() async {
+    final uid = _currentUser?.uid;
+    if (uid == null) return false;
+    _setLoading(true);
+    try {
+      await _authService.setPremium(userId: uid, isPremium: true);
+      _currentUser = _currentUser?.copyWith(isPremium: true, pinLimit: 999);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // Logout method
   Future<void> logout() async {
     _setLoading(true);

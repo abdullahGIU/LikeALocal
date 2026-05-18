@@ -6,6 +6,7 @@ import '../../core/providers/place_provider.dart';
 import '../../core/providers/search_provider.dart';
 import '../../widgets/filter_bottom_sheet.dart';
 import '../../widgets/place_card.dart';
+import '../chat/ai_chat_screen.dart';
 import '../places/place_details_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -111,6 +112,16 @@ class _SearchScreenState extends State<SearchScreen> {
         backgroundColor: Colors.white,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome_outlined),
+            tooltip: 'AI guide',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AiChatScreen()),
+            ),
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -4,7 +4,9 @@ import '../../core/constants/app_colors.dart';
 import '../../core/providers/home_provider.dart';
 import '../../core/providers/main_navigation_provider.dart';
 import '../../core/providers/place_provider.dart';
+import '../../widgets/ai_recommendations_card.dart';
 import '../../widgets/place_card.dart';
+import '../../widgets/sponsored_places_section.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -127,6 +129,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
+                  const SliverToBoxAdapter(child: SponsoredPlacesSection()),
+                  const SliverToBoxAdapter(child: AiRecommendationsCard()),
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),

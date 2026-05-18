@@ -8,4 +8,13 @@ class ApiKeys {
   );
 
   static bool get hasMapboxToken => mapboxAccessToken.isNotEmpty;
+
+  /// Gemini API key — https://aistudio.google.com/apikey
+  /// Override: `flutter run --dart-define=GEMINI_API_KEY=your_key`
+  static const String geminiApiKey = String.fromEnvironment(
+    'GEMINI_API_KEY',
+    defaultValue: '',
+  );
+
+  static bool get hasGeminiKey => geminiApiKey.isNotEmpty;
 }

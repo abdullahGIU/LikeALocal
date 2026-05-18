@@ -19,6 +19,7 @@ class Place {
   final String atmosphere;
   final String? ownerId;
   final double? distanceKm;
+  final bool isSponsored;
 
   const Place({
     required this.id,
@@ -37,6 +38,7 @@ class Place {
     required this.atmosphere,
     this.ownerId,
     this.distanceKm,
+    this.isSponsored = false,
   });
   static String generatedImageUrl({
     required String name,
@@ -177,6 +179,7 @@ class Place {
       budget: ((data['budget'] as String?) ?? 'medium').toLowerCase(),
       atmosphere: ((data['atmosphere'] as String?) ?? 'lively').toLowerCase(),
       ownerId: data['ownerId'] as String?,
+      isSponsored: data['isSponsored'] as bool? ?? false,
     );
   }
 
@@ -197,6 +200,7 @@ class Place {
     String? atmosphere,
     String? ownerId,
     double? distanceKm,
+    bool? isSponsored,
   }) {
     return Place(
       id: id ?? this.id,
@@ -215,6 +219,7 @@ class Place {
       atmosphere: atmosphere ?? this.atmosphere,
       ownerId: ownerId ?? this.ownerId,
       distanceKm: distanceKm ?? this.distanceKm,
+      isSponsored: isSponsored ?? this.isSponsored,
     );
   }
 }

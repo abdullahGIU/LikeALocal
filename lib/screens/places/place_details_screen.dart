@@ -6,6 +6,7 @@ import '../../core/providers/search_provider.dart';
 import '../../core/models/place.dart';
 import '../../core/models/review.dart';
 import '../../core/services/firestore_service.dart';
+import '../profile/subscription_screen.dart';
 import '../chat/chat_room_screen.dart';
 import '../../widgets/place_image.dart';
 
@@ -73,6 +74,23 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
               ),
             ),
           );
+      }
+    } on PinLimitReachedException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            action: SnackBarAction(
+              label: 'Upgrade',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SubscriptionScreen(),
+                ),
+              ),
+            ),
+          ),
+        );
       }
     } catch (_) {
       if (mounted) {

@@ -14,6 +14,7 @@ import 'core/providers/home_provider.dart';
 import 'core/providers/search_provider.dart';
 import 'core/providers/map_provider.dart';
 import 'core/providers/main_navigation_provider.dart';
+import 'core/providers/notification_provider.dart';
 
 // Widgets
 import 'screens/auth/auth_wrapper.dart';
@@ -35,6 +36,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => PlaceProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProxyProvider<PlaceProvider, HomeProvider>(
           create: (_) => HomeProvider(),
           update: (_, places, home) => home!..bind(places),

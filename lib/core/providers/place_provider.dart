@@ -32,6 +32,7 @@ class PlaceProvider extends ChangeNotifier {
   List<Place> _allPlaces = [];
   List<Place> _nearbyPlaces = [];
   List<Place> _pinnedPlaces = [];
+  List<Place> _sponsoredPlaces = [];
   Position? _userPosition;
   bool _isLoading = false;
   String? _errorMessage;
@@ -40,6 +41,7 @@ class PlaceProvider extends ChangeNotifier {
   List<Place> get allPlaces => _allPlaces;
   List<Place> get nearbyPlaces => _nearbyPlaces;
   List<Place> get pinnedPlaces => _pinnedPlaces;
+  List<Place> get sponsoredPlaces => _sponsoredPlaces;
   Position? get userPosition => _userPosition;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -88,6 +90,15 @@ class PlaceProvider extends ChangeNotifier {
       _allPlaces = _mergePlaces(firestorePlaces, discoveredPlaces, _pinnedPlaces);
       _attachDistances();
       _nearbyPlaces = _filterNearby(_allPlaces);
+
+      _sponsoredPlaces = await _firestoreService.fetchSponsoredPlaces();
+      if (_sponsoredPlaces.isEmpty) {
+        _sponsoredPlaces =
+            _allPlaces.where((p) => p.isSponsored).take(3).toList();
+      }
+      if (_sponsoredPlaces.isEmpty && _allPlaces.isNotEmpty) {
+        _sponsoredPlaces = _allPlaces.take(2).toList();
+      }
     } catch (_) {
       _errorMessage = 'Failed to load places near you.';
     } finally {

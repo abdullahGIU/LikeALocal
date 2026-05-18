@@ -7,7 +7,11 @@ import '../../core/providers/main_navigation_provider.dart';
 import '../../core/services/firestore_service.dart';
 import '../auth/auth_wrapper.dart';
 import '../auth/login_screen.dart';
+import '../chat/ai_chat_screen.dart';
+import '../notifications/notifications_screen.dart';
 import '../places/place_details_screen.dart';
+import 'settings_screen.dart';
+import 'subscription_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -82,12 +86,56 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 24),
             Card(
               child: ListTile(
+                leading: const Icon(Icons.settings, color: Color(0xFF1D9E75)),
+                title: const Text('Settings'),
+                subtitle: const Text('Notifications, AI, privacy'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                ),
+              ),
+            ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.notifications_outlined,
+                    color: Color(0xFF1D9E75)),
+                title: const Text('Notifications'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
+                ),
+              ),
+            ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.auto_awesome, color: Color(0xFF1D9E75)),
+                title: const Text('AI Local Guide'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AiChatScreen()),
+                ),
+              ),
+            ),
+            Card(
+              child: ListTile(
                 leading: const Icon(Icons.workspace_premium,
                     color: Color(0xFF1D9E75)),
                 title: const Text('Premium'),
+                subtitle: Text(user.isPremium ? 'Active plan' : 'Upgrade for more'),
                 trailing: user.isPremium
                     ? const Icon(Icons.check_circle, color: Color(0xFF1D9E75))
-                    : const Text('Free'),
+                    : const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SubscriptionScreen(),
+                  ),
+                ),
               ),
             ),
             Card(

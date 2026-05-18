@@ -58,6 +58,55 @@ class FirestoreService {
     return places;
   }
 
+  Future<List<Place>> fetchSponsoredPlaces({int limit = 5}) async {
+    try {
+      final snapshot = await _placesCollection
+          .where('isSponsored', isEqualTo: true)
+          .limit(limit)
+          .get();
+      return snapshot.docs.map(Place.fromDoc).toList();
+    } catch (_) {
+      final all = await fetchPlaces();
+      return all.take(limit).toList();
+    }
+  }
+
+  Future<int> getPinnedPlaceCount(String userId) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('pins')
+        .get();
+    return snapshot.docs.length;
+  }
+
+  Future<void> setUserPremium({
+    required String userId,
+    required bool isPremium,
+  }) async {
+    await _firestore.collection('users').doc(userId).update({
+      'isPremium': isPremium,
+      'pinLimit': isPremium ? 999 : 5,
+    });
+  }
+
+  Future<void> updateUserPreferences({
+    required String userId,
+    required Map<String, dynamic> preferences,
+  }) async {
+    await _firestore.collection('users').doc(userId).set(
+      {'preferences': preferences},
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<Map<String, dynamic>> getUserPreferences(String userId) async {
+    final doc = await _firestore.collection('users').doc(userId).get();
+    final prefs = doc.data()?['preferences'];
+    if (prefs is Map<String, dynamic>) return prefs;
+    return {};
+  }
+
   Future<List<Place>> fetchNearbyPlaces({
     required double userLatitude,
     required double userLongitude,
@@ -130,6 +179,17 @@ class FirestoreService {
       return;
     }
 
+    final userDoc = await _firestore.collection('users').doc(userId).get();
+    final userData = userDoc.data() ?? {};
+    final isPremium = userData['isPremium'] as bool? ?? false;
+    final pinLimit = (userData['pinLimit'] as num?)?.toInt() ?? 5;
+    if (!isPremium) {
+      final count = await getPinnedPlaceCount(userId);
+      if (count >= pinLimit) {
+        throw PinLimitReachedException(pinLimit);
+      }
+    }
+
     await pinRef.set({
       'placeId': place.id,
       'name': place.name,
@@ -188,4 +248,12 @@ class FirestoreService {
       }).where((p) => p.latitude != 0 || p.longitude != 0).toList();
     });
   }
+}
+
+class PinLimitReachedException implements Exception {
+  final int limit;
+  PinLimitReachedException(this.limit);
+
+  @override
+  String toString() => 'Pin limit reached ($limit). Upgrade to Premium for unlimited pins.';
 }

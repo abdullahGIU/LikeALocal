@@ -80,6 +80,16 @@ class AuthService {
     }
   }
 
+  Future<void> setPremium({
+    required String userId,
+    required bool isPremium,
+  }) async {
+    await _firestore.collection('users').doc(userId).update({
+      'isPremium': isPremium,
+      'pinLimit': isPremium ? 999 : 5,
+    });
+  }
+
   // Logout
   Future<void> logout() => _auth.signOut();
 
