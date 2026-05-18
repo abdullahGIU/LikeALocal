@@ -50,6 +50,7 @@ dependencies:
   http: ^1.2.0
   firebase_app_check: ^0.2.1+17
   url_launcher: ^6.2.5
+  video_player: ^2.9.1
 
 dev_dependencies:
   flutter_test:

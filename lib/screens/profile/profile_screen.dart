@@ -8,6 +8,7 @@ import '../../core/services/firestore_service.dart';
 import '../auth/auth_wrapper.dart';
 import '../auth/login_screen.dart';
 import '../places/place_details_screen.dart';
+import '../places/my_places_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -106,6 +107,23 @@ class ProfileScreen extends StatelessWidget {
                 trailing: Text(user.pinLimit.toString()),
               ),
             ),
+            if (userId != null)
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.add_location_alt, color: Color(0xFF1D9E75)),
+                  title: const Text('My Created Places'),
+                  subtitle: const Text('Add, edit, or delete places'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MyPlacesScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ),
             if (userId != null) ...[
               const SizedBox(height: 24),
               Row(

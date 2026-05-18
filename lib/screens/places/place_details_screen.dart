@@ -8,6 +8,7 @@ import '../../core/models/review.dart';
 import '../../core/services/firestore_service.dart';
 import '../chat/chat_room_screen.dart';
 import '../../widgets/place_image.dart';
+import '../../widgets/network_video_player.dart';
 
 class PlaceDetailsScreen extends StatefulWidget {
   final Place place;
@@ -356,7 +357,8 @@ class _PlacePhotoGalleryState extends State<_PlacePhotoGallery> {
 
   @override
   Widget build(BuildContext context) {
-    final count = widget.place.displayImageUrls.length;
+    final media = widget.place.displayMedia;
+    final count = media.length;
 
     return Stack(
       fit: StackFit.expand,
@@ -366,9 +368,14 @@ class _PlacePhotoGalleryState extends State<_PlacePhotoGallery> {
           itemCount: count,
           onPageChanged: (i) => setState(() => _index = i),
           itemBuilder: (context, index) {
+            final item = media[index];
+            if (item.type == 'video') {
+              return NetworkVideoPlayer(url: item.url);
+            }
             return PlaceImage(
               place: widget.place,
               variant: index,
+              imageUrl: item.url,
             );
           },
         ),

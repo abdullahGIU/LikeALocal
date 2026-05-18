@@ -10,6 +10,7 @@ class PlaceImage extends StatelessWidget {
   final int variant;
   final BoxFit fit;
   final Widget? placeholder;
+  final String? imageUrl;
 
   const PlaceImage({
     super.key,
@@ -17,13 +18,14 @@ class PlaceImage extends StatelessWidget {
     this.variant = 0,
     this.fit = BoxFit.cover,
     this.placeholder,
+    this.imageUrl,
   });
 
   @override
   Widget build(BuildContext context) {
     final urls = place.displayImageUrls;
     final primary =
-        variant < urls.length ? urls[variant] : place.primaryImageUrl;
+        imageUrl ?? (variant < urls.length ? urls[variant] : place.primaryImageUrl);
     final fallback = PlaceImageUrls.fallback(seed: place.id, variant: variant);
 
     return CachedNetworkImage(
