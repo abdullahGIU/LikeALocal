@@ -8,6 +8,10 @@ class AppUser {
   final bool isPremium;
   final bool isSuperUser;
   final int pinLimit;
+  final bool chatEnabled;
+  final bool chatScheduleEnabled;
+  final String chatAvailableFrom;
+  final String chatAvailableTo;
   final DateTime? createdAt;
 
   const AppUser({
@@ -18,6 +22,10 @@ class AppUser {
     this.isPremium = false,
     this.isSuperUser = false,
     this.pinLimit = 5,
+    this.chatEnabled = true,
+    this.chatScheduleEnabled = false,
+    this.chatAvailableFrom = '08:00',
+    this.chatAvailableTo = '22:00',
     this.createdAt,
   });
 
@@ -30,6 +38,10 @@ class AppUser {
       isPremium: map['isPremium'] ?? false,
       isSuperUser: map['isSuperUser'] ?? false,
       pinLimit: map['pinLimit'] ?? 5,
+      chatEnabled: map['chatEnabled'] ?? true,
+      chatScheduleEnabled: map['chatScheduleEnabled'] ?? false,
+      chatAvailableFrom: map['chatAvailableFrom'] ?? '08:00',
+      chatAvailableTo: map['chatAvailableTo'] ?? '22:00',
       createdAt: map['createdAt'] != null
           ? (map['createdAt'] as Timestamp).toDate()
           : null,
@@ -45,6 +57,10 @@ class AppUser {
       'isPremium': isPremium,
       'isSuperUser': isSuperUser,
       'pinLimit': pinLimit,
+      'chatEnabled': chatEnabled,
+      'chatScheduleEnabled': chatScheduleEnabled,
+      'chatAvailableFrom': chatAvailableFrom,
+      'chatAvailableTo': chatAvailableTo,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
     };
   }
@@ -57,6 +73,10 @@ class AppUser {
     bool? isPremium,
     bool? isSuperUser,
     int? pinLimit,
+    bool? chatEnabled,
+    bool? chatScheduleEnabled,
+    String? chatAvailableFrom,
+    String? chatAvailableTo,
     DateTime? createdAt,
   }) {
     return AppUser(
@@ -67,6 +87,10 @@ class AppUser {
       isPremium: isPremium ?? this.isPremium,
       isSuperUser: isSuperUser ?? this.isSuperUser,
       pinLimit: pinLimit ?? this.pinLimit,
+      chatEnabled: chatEnabled ?? this.chatEnabled,
+      chatScheduleEnabled: chatScheduleEnabled ?? this.chatScheduleEnabled,
+      chatAvailableFrom: chatAvailableFrom ?? this.chatAvailableFrom,
+      chatAvailableTo: chatAvailableTo ?? this.chatAvailableTo,
       createdAt: createdAt ?? this.createdAt,
     );
   }

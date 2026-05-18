@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../widgets/bottom_nav_bar.dart';
+import '../../core/providers/auth_provider.dart' as app_auth;
 import 'welcome_screen.dart';
 
 class AuthWrapper extends StatelessWidget {
@@ -22,6 +24,10 @@ class AuthWrapper extends StatelessWidget {
 
         // User is logged in
         if (snapshot.hasData && snapshot.data != null) {
+          final authProvider = context.read<app_auth.AuthProvider>();
+          if (!authProvider.isLoggedIn) {
+            authProvider.checkCurrentUser();
+          }
           return const MainScreen();
         }
 

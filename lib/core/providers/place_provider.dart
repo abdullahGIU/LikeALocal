@@ -87,6 +87,8 @@ class PlaceProvider extends ChangeNotifier {
 
       _allPlaces = _mergePlaces(firestorePlaces, discoveredPlaces, _pinnedPlaces);
       _attachDistances();
+      // Community places (user-created) are always visible everywhere;
+      // only Mapbox-discovered places without owners are radius-filtered.
       _nearbyPlaces = _filterNearby(_allPlaces);
     } catch (_) {
       _errorMessage = 'Failed to load places near you.';
@@ -151,13 +153,24 @@ class PlaceProvider extends ChangeNotifier {
   }
 
   List<Place> _filterNearby(List<Place> places) {
+    // Always include user-created places (they have an ownerId).
+    final communityPlaces = places.where((p) => p.ownerId.isNotEmpty).toList();
+
     if (_userPosition == null) {
-      return places.take(20).toList();
+      // No location: show community places + up to 20 others.
+      final others = places.where((p) => p.ownerId.isEmpty).take(20).toList();
+      return {...communityPlaces, ...others}.toList();
     }
-    return places
-        .where((p) => (p.distanceKm ?? double.infinity) <= nearbyRadiusKm)
+
+    // With location: filter Mapbox places by radius, always keep community.
+    final nearbyMapbox = places
+        .where((p) =>
+            p.ownerId.isEmpty &&
+            (p.distanceKm ?? double.infinity) <= nearbyRadiusKm)
         .toList()
       ..sort((a, b) => (a.distanceKm ?? 0).compareTo(b.distanceKm ?? 0));
+
+    return {...communityPlaces, ...nearbyMapbox}.toList();
   }
 
   List<Place> placesWithinRadius(double radiusKm) {

@@ -79,6 +79,36 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // Update chat privacy settings
+  Future<bool> updateChatPrivacy({
+    required bool chatEnabled,
+    required bool chatScheduleEnabled,
+    required String chatAvailableFrom,
+    required String chatAvailableTo,
+  }) async {
+    if (_currentUser == null) return false;
+
+    _setLoading(true);
+    clearError();
+    try {
+      _currentUser = await _authService.updateUserChatSettings(
+        userId: _currentUser!.uid,
+        chatEnabled: chatEnabled,
+        chatScheduleEnabled: chatScheduleEnabled,
+        chatAvailableFrom: chatAvailableFrom,
+        chatAvailableTo: chatAvailableTo,
+      );
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      notifyListeners();
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // Reset Password method
   Future<bool> resetPassword(String email) async {
     _setLoading(true);

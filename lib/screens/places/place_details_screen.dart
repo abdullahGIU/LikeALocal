@@ -6,6 +6,8 @@ import '../../core/providers/search_provider.dart';
 import '../../core/models/place.dart';
 import '../../core/models/review.dart';
 import '../../core/services/firestore_service.dart';
+import '../../core/services/auth_service.dart';
+import '../../core/services/chat_service.dart';
 import '../chat/chat_room_screen.dart';
 import '../../widgets/place_image.dart';
 import '../../widgets/network_video_player.dart';
@@ -37,7 +39,6 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
   Future<void> _loadPinState() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return;
-
     final pinned = await _firestoreService.isPlacePinned(
       userId: userId,
       placeId: widget.place.id,
@@ -54,7 +55,6 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
       return;
     }
     final wasPinned = _isPinned;
-
     setState(() => _pinLoading = true);
     try {
       await _firestoreService.togglePinPlace(
@@ -84,6 +84,58 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
     } finally {
       if (mounted) setState(() => _pinLoading = false);
     }
+  }
+
+  Future<void> _openChat() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to start a chat.')),
+      );
+      return;
+    }
+
+    final ownerId = widget.place.ownerId;
+
+    if (ownerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This place has no owner to chat with.')),
+      );
+      return;
+    }
+
+    if (currentUser.uid == ownerId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You cannot chat with yourself.')),
+      );
+      return;
+    }
+
+    final canChat = await AuthService().canOpenChatWithUser(ownerId);
+    if (!mounted) return;
+
+    if (!canChat) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('The owner is not accepting chats at this time.'),
+        ),
+      );
+      return;
+    }
+
+    final chatId = await ChatService().createOrOpenChat(
+      touristId: currentUser.uid,
+      ownerId: ownerId,
+      postId: widget.place.id,
+    );
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatRoomScreen(chatId: chatId),
+      ),
+    );
   }
 
   @override
@@ -160,25 +212,22 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const ChatRoomScreen(),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.chat_bubble_outline),
-                          label: const Text('Chat Owner'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF7C4DFF),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                      if (place.ownerId.isNotEmpty &&
+                          place.ownerId != FirebaseAuth.instance.currentUser?.uid) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _openChat,
+                            icon: const Icon(Icons.chat_bubble_outline),
+                            label: const Text('Chat Owner'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF7C4DFF),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 28),
@@ -200,10 +249,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                     const SizedBox(height: 28),
                     const Text(
                       'Tips',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 10),
                     ...place.tips.map(_tipCard),
@@ -227,7 +273,6 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                           ),
                         );
                       }
-
                       final reviews = snapshot.data ?? [];
                       if (reviews.isEmpty) {
                         return const Text(
@@ -235,7 +280,6 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                           style: TextStyle(color: AppColors.textSecondary),
                         );
                       }
-
                       return Column(
                         children: reviews.map(_reviewCard).toList(),
                       );
