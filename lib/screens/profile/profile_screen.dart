@@ -142,8 +142,17 @@ class ProfileScreen extends StatelessWidget {
               child: ListTile(
                 leading: const Icon(Icons.star, color: Color(0xFF1D9E75)),
                 title: const Text('Super User'),
-                trailing: user.isSuperUser
-                    ? const Icon(Icons.check_circle, color: Color(0xFF1D9E75))
+                subtitle: user.isPremium
+                    ? const Text('Included with Premium')
+                    : null,
+                trailing: (user.isPremium || user.isSuperUser)
+                    ? const Text(
+                        'Yes',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1D9E75),
+                        ),
+                      )
                     : const Text('No'),
               ),
             ),

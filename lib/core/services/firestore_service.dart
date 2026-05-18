@@ -86,6 +86,7 @@ class FirestoreService {
   }) async {
     await _firestore.collection('users').doc(userId).update({
       'isPremium': isPremium,
+      'isSuperUser': isPremium,
       'pinLimit': isPremium ? 999 : 5,
     });
   }

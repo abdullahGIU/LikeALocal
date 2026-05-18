@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/constants/ai_prompt_suggestions.dart';
 import '../../core/constants/api_keys.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/models/ai_message.dart';
@@ -22,12 +23,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
   final _ai = AiService();
   final List<AiMessage> _messages = [];
   bool _loading = false;
+  List<String> _suggestions = [];
 
-  static const _starters = [
-    'Cheap local seafood near me',
-    'Quiet café to work from',
-    'Traditional restaurants with lively vibe',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _reshuffleSuggestions();
+  }
+
+  void _reshuffleSuggestions() {
+    setState(() {
+      _suggestions = AiPromptSuggestions.shuffled(count: 16);
+    });
+  }
 
   @override
   void dispose() {
@@ -54,11 +62,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     final places = context.read<PlaceProvider>().nearbyPlaces;
     final prefs = context.read<UserProvider>();
+    final priorHistory = _messages.length > 1
+        ? _messages.sublist(0, _messages.length - 1)
+        : <AiMessage>[];
 
     try {
       final reply = await _ai.chat(
         userMessage: content,
-        history: _messages,
+        history: priorHistory,
         nearbyPlaces: places,
         budget: prefs.budget,
         atmosphere: prefs.atmosphere,
@@ -71,6 +82,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           text: reply,
           createdAt: DateTime.now(),
         ));
+        _suggestions = AiPromptSuggestions.shuffled(count: 16);
       });
     } catch (e) {
       if (!mounted) return;
@@ -81,6 +93,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           text: 'Sorry, I could not respond right now. Please try again.',
           createdAt: DateTime.now(),
         ));
+        _suggestions = AiPromptSuggestions.shuffled(count: 16);
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -108,11 +121,16 @@ class _AiChatScreenState extends State<AiChatScreen> {
       appBar: AppBar(
         title: const Text('AI Local Guide'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.shuffle),
+            tooltip: 'New suggestions',
+            onPressed: _loading ? null : _reshuffleSuggestions,
+          ),
           if (!ApiKeys.hasGeminiKey)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 4),
               child: Chip(
-                label: const Text('Demo mode', style: TextStyle(fontSize: 11)),
+                label: const Text('Demo', style: TextStyle(fontSize: 11)),
                 backgroundColor: Colors.amber.shade100,
                 padding: EdgeInsets.zero,
               ),
@@ -139,48 +157,25 @@ class _AiChatScreenState extends State<AiChatScreen> {
             ),
           Expanded(
             child: _messages.isEmpty
-                ? _EmptyChat(onSuggestionTap: _send)
+                ? _EmptyChat()
                 : ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.all(16),
                     itemCount: _messages.length + (_loading ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (_loading && index == _messages.length) {
-                        return const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                        );
+                        return const _TypingIndicator();
                       }
                       return _Bubble(message: _messages[index]);
                     },
                   ),
           ),
-          if (_messages.isEmpty)
-            SizedBox(
-              height: 44,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                children: _starters
-                    .map(
-                      (s) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ActionChip(
-                          label: Text(s, style: const TextStyle(fontSize: 12)),
-                          onPressed: () => _send(s),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
+          _SuggestionBar(
+            suggestions: _suggestions,
+            loading: _loading,
+            onTap: _send,
+            onShuffle: _reshuffleSuggestions,
+          ),
           _InputBar(
             controller: _controller,
             loading: _loading,
@@ -193,10 +188,6 @@ class _AiChatScreenState extends State<AiChatScreen> {
 }
 
 class _EmptyChat extends StatelessWidget {
-  final void Function(String) onSuggestionTap;
-
-  const _EmptyChat({required this.onSuggestionTap});
-
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -208,16 +199,143 @@ class _EmptyChat extends StatelessWidget {
             Icon(Icons.auto_awesome, size: 56, color: AppColors.primaryGreen),
             const SizedBox(height: 16),
             const Text(
-              'Ask for local recommendations',
+              'Your local AI guide',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Example: "I want cheap local seafood near me"',
+              'Tap a suggestion below or type your own question.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.textSecondary),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionBar extends StatelessWidget {
+  final List<String> suggestions;
+  final bool loading;
+  final void Function(String) onTap;
+  final VoidCallback onShuffle;
+
+  const _SuggestionBar({
+    required this.suggestions,
+    required this.loading,
+    required this.onTap,
+    required this.onShuffle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      elevation: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
+            child: Row(
+              children: [
+                const Text(
+                  'Try asking',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: loading ? null : onShuffle,
+                  icon: const Icon(Icons.shuffle, size: 16),
+                  label: const Text('Shuffle', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 108,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+              itemCount: suggestions.length,
+              itemBuilder: (context, index) {
+                final text = suggestions[index];
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ActionChip(
+                    label: Text(
+                      text,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    backgroundColor: const Color(0xFFE8FFF5),
+                    side: BorderSide(
+                      color: AppColors.primaryGreen.withValues(alpha: 0.35),
+                    ),
+                    onPressed: loading ? null : () => onTap(text),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TypingIndicator extends StatelessWidget {
+  const _TypingIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 8,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.primaryGreen,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'LikeALocal is thinking…',
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -238,11 +356,16 @@ class _Bubble extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.82,
+          maxWidth: MediaQuery.sizeOf(context).width * 0.85,
         ),
         decoration: BoxDecoration(
           color: isUser ? AppColors.primaryGreen : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(isUser ? 16 : 4),
+            bottomRight: Radius.circular(isUser ? 4 : 16),
+          ),
           boxShadow: [
             if (!isUser)
               BoxShadow(
@@ -255,7 +378,8 @@ class _Bubble extends StatelessWidget {
           message.text,
           style: TextStyle(
             color: isUser ? Colors.white : AppColors.textPrimary,
-            height: 1.4,
+            height: 1.45,
+            fontSize: 15,
           ),
         ),
       ),
@@ -278,7 +402,7 @@ class _InputBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         child: Row(
           children: [
             Expanded(

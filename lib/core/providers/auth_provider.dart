@@ -108,7 +108,11 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(true);
     try {
       await _authService.setPremium(userId: uid, isPremium: true);
-      _currentUser = _currentUser?.copyWith(isPremium: true, pinLimit: 999);
+      _currentUser = _currentUser?.copyWith(
+        isPremium: true,
+        isSuperUser: true,
+        pinLimit: 999,
+      );
       notifyListeners();
       return true;
     } catch (e) {

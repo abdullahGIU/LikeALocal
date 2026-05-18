@@ -10,6 +10,20 @@ class AiService {
   static const _baseUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
+  static const _systemPersona = '''
+You are **LikeALocal**, a warm, knowledgeable local friend helping travelers discover real places.
+
+Your style:
+- Sound natural and enthusiastic — like a local texting a friend, not a robot.
+- Use short paragraphs and bullet points when listing places.
+- Mention **place names in bold** when recommending from the list.
+- Add a quick insider tip when helpful (best time to go, what to order, vibe).
+- If the user asks something vague, ask one friendly follow-up question OR offer 2–3 tailored options.
+- Only recommend places from the provided nearby list — never invent venues.
+- Include distance when available (e.g. "about 1.2 km away").
+- Keep answers focused (roughly 80–180 words unless they ask for more).
+''';
+
   /// Chat-style reply using conversation history + optional nearby places context.
   Future<String> chat({
     required String userMessage,
@@ -19,24 +33,24 @@ class AiService {
     String? atmosphere,
     String? cityHint,
   }) async {
-    final systemContext = _buildContext(
-      nearbyPlaces: nearbyPlaces,
-      budget: budget,
-      atmosphere: atmosphere,
-      cityHint: cityHint,
-    );
+    final placesBlock = nearbyPlaces.isEmpty
+        ? 'No nearby places loaded yet — encourage enabling location and refreshing the app.'
+        : 'Nearby places (use only these):\n${_formatPlaces(nearbyPlaces.take(18))}';
 
-    final prompt = StringBuffer()
-      ..writeln(systemContext)
-      ..writeln()
-      ..writeln('Conversation:');
+    final prefs = StringBuffer();
+    if (budget != null) prefs.writeln('User budget preference: $budget');
+    if (atmosphere != null) prefs.writeln('User vibe preference: $atmosphere');
+    if (cityHint != null) prefs.writeln('Area context: $cityHint');
 
-    for (final msg in history.take(8)) {
-      final role = msg.isUser ? 'User' : 'Assistant';
-      prompt.writeln('$role: ${msg.text}');
-    }
-    prompt.writeln('User: $userMessage');
-    prompt.writeln('Assistant:');
+    final historyBlock = _formatHistory(history);
+
+    final userTurn = '''
+$placesBlock
+
+${prefs.isNotEmpty ? '$prefs\n' : ''}$historyBlock
+User: $userMessage
+
+Reply as LikeALocal:''';
 
     if (!ApiKeys.hasGeminiKey) {
       return _mockResponse(
@@ -48,7 +62,10 @@ class AiService {
     }
 
     try {
-      return await _callGemini(prompt.toString());
+      return await _callGemini(
+        userMessage: userTurn,
+        systemInstruction: _systemPersona,
+      );
     } catch (_) {
       return _mockResponse(
         userMessage: userMessage,
@@ -66,51 +83,66 @@ class AiService {
     String atmosphere = 'lively',
     String? locationLabel,
   }) async {
-    final prompt = '''
-Recommend exactly 3 local places from this list for a traveler.
-Budget preference: $budget
-Atmosphere preference: $atmosphere
+    final placesBlock = nearbyPlaces.isEmpty
+        ? '(no places loaded)'
+        : _formatPlaces(nearbyPlaces.take(12));
+
+    final fullPrompt = '''
+$placesBlock
+
+Recommend exactly 3 places from the list above for a traveler.
+Budget: $budget | Atmosphere: $atmosphere
 ${locationLabel != null ? 'Area: $locationLabel' : ''}
 
-Places:
-${_formatPlaces(nearbyPlaces.take(12))}
-
-Reply with a short intro then 3 bullet points: **Place Name** — one sentence why.
-Keep it friendly and specific.''';
+Write a warm 1-sentence intro, then 3 bullets: **Place Name** — why it fits (distance if known).
+Sound like a local friend, not a search engine.''';
 
     if (!ApiKeys.hasGeminiKey) {
       return _mockRecommendations(nearbyPlaces, budget, atmosphere);
     }
 
     try {
-      return await _callGemini(prompt);
+      return await _callGemini(
+        userMessage: fullPrompt,
+        systemInstruction: _systemPersona,
+      );
     } catch (_) {
       return _mockRecommendations(nearbyPlaces, budget, atmosphere);
     }
   }
 
-  Future<String> _callGemini(String prompt) async {
+  Future<String> _callGemini({
+    required String userMessage,
+    required String systemInstruction,
+  }) async {
     final uri = Uri.parse('$_baseUrl?key=${ApiKeys.geminiApiKey}');
     final response = await http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
+        'systemInstruction': {
+          'parts': [
+            {'text': systemInstruction},
+          ],
+        },
         'contents': [
           {
+            'role': 'user',
             'parts': [
-              {'text': prompt},
+              {'text': userMessage},
             ],
           },
         ],
         'generationConfig': {
-          'temperature': 0.7,
-          'maxOutputTokens': 512,
+          'temperature': 0.88,
+          'topP': 0.95,
+          'maxOutputTokens': 1024,
         },
       }),
     );
 
     if (response.statusCode != 200) {
-      throw Exception('Gemini API error ${response.statusCode}');
+      throw Exception('Gemini API error ${response.statusCode}: ${response.body}');
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -126,23 +158,14 @@ Keep it friendly and specific.''';
     return text.trim();
   }
 
-  String _buildContext({
-    required List<Place> nearbyPlaces,
-    String? budget,
-    String? atmosphere,
-    String? cityHint,
-  }) {
-    final buffer = StringBuffer(
-      'You are LikeALocal, a friendly local travel assistant. '
-      'Suggest real places from the list when possible. Be concise.',
-    );
-    if (budget != null) buffer.writeln('User budget: $budget');
-    if (atmosphere != null) buffer.writeln('User atmosphere: $atmosphere');
-    if (cityHint != null) buffer.writeln('User area: $cityHint');
-    if (nearbyPlaces.isNotEmpty) {
-      buffer.writeln('\nNearby places:\n${_formatPlaces(nearbyPlaces.take(15))}');
+  String _formatHistory(List<AiMessage> history) {
+    if (history.isEmpty) return '';
+    final buffer = StringBuffer('Recent conversation:\n');
+    for (final msg in history.take(10)) {
+      final role = msg.isUser ? 'User' : 'LikeALocal';
+      buffer.writeln('$role: ${msg.text}');
     }
-    return buffer.toString();
+    return '${buffer.toString()}\n';
   }
 
   String _formatPlaces(Iterable<Place> places) {
@@ -150,9 +173,10 @@ Keep it friendly and specific.''';
     return places
         .map((p) {
           final dist = p.distanceKm != null
-              ? ' — ${p.distanceKm!.toStringAsFixed(1)} km'
+              ? ', ${p.distanceKm!.toStringAsFixed(1)} km away'
               : '';
-          return '- ${p.name} (${p.category}, ${p.budget}, ${p.atmosphere})$dist';
+          final open = p.isOpen ? 'open' : 'closed';
+          return '• ${p.name} — ${p.category}, ${p.budget} budget, ${p.atmosphere} vibe, $open$dist';
         })
         .join('\n');
   }
@@ -165,11 +189,12 @@ Keep it friendly and specific.''';
   }) {
     final query = userMessage.toLowerCase();
     var matches = nearbyPlaces.where((p) {
-      return query.split(' ').any(
+      return query.split(RegExp(r'\s+')).any(
             (word) =>
                 word.length > 3 &&
                 (p.name.toLowerCase().contains(word) ||
-                    p.category.toLowerCase().contains(word)),
+                    p.category.toLowerCase().contains(word) ||
+                    p.atmosphere.toLowerCase().contains(word)),
           );
     }).take(3).toList();
 
@@ -177,21 +202,59 @@ Keep it friendly and specific.''';
       matches = nearbyPlaces.take(3).toList();
     }
 
-    final budgetLine = budget != null ? ' ($budget budget)' : '';
     final vibe = atmosphere ?? 'local';
+    final budgetLabel = budget ?? 'flexible';
 
     if (matches.isEmpty) {
-      return 'I can help you discover cafés, restaurants, parks, and museums near you. '
-          'Try enabling location or searching first, then ask again!\n\n'
-          'Tip: Add a Gemini API key with --dart-define=GEMINI_API_KEY=... for smarter answers.';
+      return 'Hey! 👋 I’d love to help, but I don’t have places loaded near you yet.\n\n'
+          'Try turning on location and pulling to refresh on Home — then ask me again. '
+          'I can suggest cafés, restaurants, parks, and hidden gems based on what’s actually around you.\n\n'
+          '_Tip: run with `--dart-define=GEMINI_API_KEY=...` for full AI answers._';
     }
 
-    final bullets = matches
-        .map((p) => '• **${p.name}** — ${p.category}, ${p.atmosphere} vibe$budgetLine')
-        .join('\n');
+    final intro = _pickIntro(userMessage);
+    final bullets = matches.map((p) {
+      final dist = p.distanceKm != null
+          ? ' (${p.distanceKm!.toStringAsFixed(1)} km)'
+          : '';
+      final tip = _quickTip(p);
+      return '• **${p.name}**$dist — ${p.category}, ${p.atmosphere} vibe. $tip';
+    }).join('\n');
 
-    return 'Here are some $vibe spots based on your request:\n\n$bullets\n\n'
-        '(Demo mode — add GEMINI_API_KEY for full AI responses.)';
+    return '$intro\n\n$bullets\n\n'
+        'Want something more $vibe or closer to a **$budgetLabel** budget? Just say the word!';
+  }
+
+  String _pickIntro(String message) {
+    final m = message.toLowerCase();
+    if (m.contains('cheap') || m.contains('budget')) {
+      return 'Great question — here are some solid picks that won’t break the bank:';
+    }
+    if (m.contains('romantic') || m.contains('date')) {
+      return 'Ooh, nice — for a date-night feel, I’d start with these:';
+    }
+    if (m.contains('coffee') || m.contains('café') || m.contains('cafe')) {
+      return 'If you’re chasing a good cup and a good vibe, locals often go here:';
+    }
+    if (m.contains('quiet') || m.contains('work')) {
+      return 'For a calmer spot to settle in, I’d recommend:';
+    }
+    return 'Based on what’s around you right now, I’d check out:';
+  }
+
+  String _quickTip(Place p) {
+    switch (p.category) {
+      case 'Cafés':
+        return 'Good for a slow morning or laptop session.';
+      case 'Restaurants':
+        return 'Ask what’s popular today — portions are usually generous.';
+      case 'Parks':
+        return 'Best around golden hour if you want photos.';
+      case 'Museums':
+        return 'Worth checking hours before you go.';
+      default:
+        return 'Worth a quick look on the map.';
+    }
   }
 
   String _mockRecommendations(
@@ -201,14 +264,16 @@ Keep it friendly and specific.''';
   ) {
     final picks = places.take(3).toList();
     if (picks.isEmpty) {
-      return 'Enable location and refresh to get AI picks near you.';
+      return 'Turn on location and refresh Home — I’ll have personalized picks for you in a second!';
     }
     final lines = picks
-        .map(
-          (p) =>
-              '• **${p.name}** — Great ${p.category.toLowerCase()} for $atmosphere vibes on a $budget budget.',
-        )
+        .map((p) {
+          final dist = p.distanceKm != null
+              ? ' · ${p.distanceKm!.toStringAsFixed(1)} km'
+              : '';
+          return '• **${p.name}**$dist — perfect for a **$atmosphere** mood on a **$budget** budget.';
+        })
         .join('\n');
-    return 'AI Suggested Places ($atmosphere, $budget):\n\n$lines';
+    return 'Here’s what I’d suggest for you today:\n\n$lines';
   }
 }

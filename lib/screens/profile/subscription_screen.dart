@@ -74,6 +74,7 @@ class SubscriptionScreen extends StatelessWidget {
             period: '/ month',
             features: const [
               'Unlimited pins',
+              'Super User status',
               'AI chat recommendations',
               'Priority AI suggestions',
               'Exclusive local places',
