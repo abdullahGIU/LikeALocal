@@ -45,6 +45,8 @@ class AuthService {
         email: email,
         isPremium: false,
         isSuperUser: false,
+        superUserScore: 0,
+        savedPlaces: const [],
         pinLimit: 5,
         photoUrl: null,
         createdAt: DateTime.now(),

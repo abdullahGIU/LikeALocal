@@ -8,6 +8,8 @@ class AppUser {
   final bool isPremium;
   final bool isSuperUser;
   final int pinLimit;
+  final int superUserScore;
+  final List<String> savedPlaces;
   final DateTime? createdAt;
 
   const AppUser({
@@ -18,6 +20,8 @@ class AppUser {
     this.isPremium = false,
     this.isSuperUser = false,
     this.pinLimit = 5,
+    this.superUserScore = 0,
+    this.savedPlaces = const [],
     this.createdAt,
   });
 
@@ -30,6 +34,8 @@ class AppUser {
       isPremium: map['isPremium'] ?? false,
       isSuperUser: map['isSuperUser'] ?? false,
       pinLimit: map['pinLimit'] ?? 5,
+      superUserScore: map['superUserScore'] ?? 0,
+      savedPlaces: List<String>.from(map['savedPlaces'] ?? []),
       createdAt: map['createdAt'] != null
           ? (map['createdAt'] as Timestamp).toDate()
           : null,
@@ -45,6 +51,8 @@ class AppUser {
       'isPremium': isPremium,
       'isSuperUser': isSuperUser,
       'pinLimit': pinLimit,
+      'superUserScore': superUserScore,
+      'savedPlaces': savedPlaces,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : null,
     };
   }
@@ -57,6 +65,8 @@ class AppUser {
     bool? isPremium,
     bool? isSuperUser,
     int? pinLimit,
+    int? superUserScore,
+    List<String>? savedPlaces,
     DateTime? createdAt,
   }) {
     return AppUser(
@@ -67,6 +77,8 @@ class AppUser {
       isPremium: isPremium ?? this.isPremium,
       isSuperUser: isSuperUser ?? this.isSuperUser,
       pinLimit: pinLimit ?? this.pinLimit,
+      superUserScore: superUserScore ?? this.superUserScore,
+      savedPlaces: savedPlaces ?? this.savedPlaces,
       createdAt: createdAt ?? this.createdAt,
     );
   }
