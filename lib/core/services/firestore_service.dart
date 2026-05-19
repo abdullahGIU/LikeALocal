@@ -3,6 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import '../models/place.dart';
 import '../models/review.dart';
 import '../utils/place_image_urls.dart';
+import 'user_score_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore;
@@ -56,6 +57,56 @@ class FirestoreService {
     final places = snapshot.docs.map(Place.fromDoc).toList();
     places.sort((a, b) => b.rating.compareTo(a.rating));
     return places;
+  }
+
+  Future<List<Place>> fetchSponsoredPlaces({int limit = 5}) async {
+    try {
+      final snapshot = await _placesCollection
+          .where('isSponsored', isEqualTo: true)
+          .limit(limit)
+          .get();
+      return snapshot.docs.map(Place.fromDoc).toList();
+    } catch (_) {
+      final all = await fetchPlaces();
+      return all.take(limit).toList();
+    }
+  }
+
+  Future<int> getPinnedPlaceCount(String userId) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('pins')
+        .get();
+    return snapshot.docs.length;
+  }
+
+  Future<void> setUserPremium({
+    required String userId,
+    required bool isPremium,
+  }) async {
+    await _firestore.collection('users').doc(userId).update({
+      'isPremium': isPremium,
+      'isSuperUser': isPremium,
+      'pinLimit': isPremium ? 999 : 5,
+    });
+  }
+
+  Future<void> updateUserPreferences({
+    required String userId,
+    required Map<String, dynamic> preferences,
+  }) async {
+    await _firestore.collection('users').doc(userId).set(
+      {'preferences': preferences},
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<Map<String, dynamic>> getUserPreferences(String userId) async {
+    final doc = await _firestore.collection('users').doc(userId).get();
+    final prefs = doc.data()?['preferences'];
+    if (prefs is Map<String, dynamic>) return prefs;
+    return {};
   }
 
   Future<List<Place>> fetchNearbyPlaces({
@@ -130,6 +181,17 @@ class FirestoreService {
       return;
     }
 
+    final userDoc = await _firestore.collection('users').doc(userId).get();
+    final userData = userDoc.data() ?? {};
+    final isPremium = userData['isPremium'] as bool? ?? false;
+    final pinLimit = (userData['pinLimit'] as num?)?.toInt() ?? 5;
+    if (!isPremium) {
+      final count = await getPinnedPlaceCount(userId);
+      if (count >= pinLimit) {
+        throw PinLimitReachedException(pinLimit);
+      }
+    }
+
     await pinRef.set({
       'placeId': place.id,
       'name': place.name,
@@ -189,4 +251,128 @@ class FirestoreService {
       }).where((p) => p.latitude != 0 || p.longitude != 0).toList();
     });
   }
+
+  Future<void> addReview({
+    required String placeId,
+    required String userId,
+    required String userName,
+    required String comment,
+    required int rating,
+  }) async {
+    final docRef = _placesCollection.doc(placeId).collection('reviews').doc();
+    await docRef.set({
+      'userId': userId,
+      'userName': userName,
+      'comment': comment,
+      'rating': rating,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    await _updatePlaceRatingStats(placeId);
+
+    final userRef = _firestore.collection('users').doc(userId);
+    await _firestore.runTransaction((transaction) async {
+      final userSnapshot = await transaction.get(userRef);
+      if (userSnapshot.exists) {
+        final currentReviews =
+            (userSnapshot.data()?['reviewsCount'] as num?)?.toInt() ?? 0;
+        transaction.update(userRef, {'reviewsCount': currentReviews + 1});
+      }
+    });
+    await UserScoreService().updateUserScore(userId);
+  }
+
+  Future<void> editReview({
+    required String placeId,
+    required String reviewId,
+    required String userId,
+    required String comment,
+    required int rating,
+  }) async {
+    await _placesCollection
+        .doc(placeId)
+        .collection('reviews')
+        .doc(reviewId)
+        .update({
+      'comment': comment,
+      'rating': rating,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await _updatePlaceRatingStats(placeId);
+    await UserScoreService().updateUserScore(userId);
+  }
+
+  Future<void> deleteReview({
+    required String placeId,
+    required String reviewId,
+    required String userId,
+  }) async {
+    await _placesCollection
+        .doc(placeId)
+        .collection('reviews')
+        .doc(reviewId)
+        .delete();
+
+    await _updatePlaceRatingStats(placeId);
+
+    final userRef = _firestore.collection('users').doc(userId);
+    await _firestore.runTransaction((transaction) async {
+      final userSnapshot = await transaction.get(userRef);
+      if (userSnapshot.exists) {
+        final currentReviews =
+            (userSnapshot.data()?['reviewsCount'] as num?)?.toInt() ?? 0;
+        transaction.update(userRef, {
+          'reviewsCount': currentReviews > 0 ? currentReviews - 1 : 0,
+        });
+      }
+    });
+    await UserScoreService().updateUserScore(userId);
+  }
+
+  Future<void> _updatePlaceRatingStats(String placeId) async {
+    final reviewsSnapshot =
+        await _placesCollection.doc(placeId).collection('reviews').get();
+
+    final reviews = reviewsSnapshot.docs;
+    if (reviews.isEmpty) {
+      await _placesCollection.doc(placeId).update({
+        'rating': 0.0,
+        'reviewCount': 0,
+      });
+      return;
+    }
+
+    final totalRating = reviews.fold<int>(0, (acc, doc) {
+      final rating = (doc.data()['rating'] as num?)?.toInt() ?? 0;
+      return acc + rating;
+    });
+
+    final avgRating = totalRating / reviews.length;
+
+    await _placesCollection.doc(placeId).update({
+      'rating': avgRating,
+      'reviewCount': reviews.length,
+    });
+  }
+
+  Future<Set<String>> fetchSuperUserIds() async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .where('isSuperUser', isEqualTo: true)
+          .get();
+      return snapshot.docs.map((doc) => doc.id).toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+}
+
+class PinLimitReachedException implements Exception {
+  final int limit;
+  PinLimitReachedException(this.limit);
+
+  @override
+  String toString() => 'Pin limit reached ($limit). Upgrade to Premium for unlimited pins.';
 }

@@ -93,8 +93,33 @@ class _MapScreenState extends State<MapScreen> {
     final uri = Uri.parse(
       'https://www.google.com/maps/dir/?api=1&destination=${place.latitude},${place.longitude}',
     );
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        // Fallback: try platform default mode
+        final fallbackLaunched = await launchUrl(uri, mode: LaunchMode.platformDefault);
+        if (!fallbackLaunched && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not open maps application.')),
+          );
+        }
+      }
+    } catch (_) {
+      try {
+        // Try platform default mode as another fallback
+        final fallbackLaunched = await launchUrl(uri, mode: LaunchMode.platformDefault);
+        if (!fallbackLaunched && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not launch maps application.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error opening directions: $e')),
+          );
+        }
+      }
     }
   }
 

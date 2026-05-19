@@ -4,6 +4,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/place.dart';
+import 'user_score_service.dart';
 
 class PlaceService {
   final FirebaseAuth _auth;
@@ -54,6 +55,19 @@ class PlaceService {
     );
 
     await _places.doc(placeToSave.id).set(placeToSave.toMap());
+
+    // Increment user's postsCount and update score
+    final userRef = _firestore.collection('users').doc(user.uid);
+    await _firestore.runTransaction((transaction) async {
+      final userSnapshot = await transaction.get(userRef);
+      if (userSnapshot.exists) {
+        final currentPosts =
+            (userSnapshot.data()?['postsCount'] as num?)?.toInt() ?? 0;
+        transaction.update(userRef, {'postsCount': currentPosts + 1});
+      }
+    });
+    await UserScoreService().updateUserScore(user.uid);
+
     return placeToSave;
   }
 
@@ -75,6 +89,20 @@ class PlaceService {
     }
 
     await _places.doc(place.id).delete();
+
+    // Decrement user's postsCount and update score
+    final userRef = _firestore.collection('users').doc(user.uid);
+    await _firestore.runTransaction((transaction) async {
+      final userSnapshot = await transaction.get(userRef);
+      if (userSnapshot.exists) {
+        final currentPosts =
+            (userSnapshot.data()?['postsCount'] as num?)?.toInt() ?? 0;
+        transaction.update(userRef, {
+          'postsCount': currentPosts > 0 ? currentPosts - 1 : 0,
+        });
+      }
+    });
+    await UserScoreService().updateUserScore(user.uid);
 
     for (final url in place.mediaUrls) {
       try {

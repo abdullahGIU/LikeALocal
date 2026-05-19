@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/providers/search_provider.dart';
+import '../../core/providers/place_provider.dart';
 import '../../core/models/place.dart';
 import '../../core/models/review.dart';
 import '../../core/services/firestore_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/chat_service.dart';
+import '../profile/subscription_screen.dart';
 import '../chat/chat_room_screen.dart';
 import '../../widgets/place_image.dart';
 import '../../widgets/network_video_player.dart';
@@ -74,6 +76,23 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
               ),
             ),
           );
+      }
+    } on PinLimitReachedException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            action: SnackBarAction(
+              label: 'Upgrade',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const SubscriptionScreen(),
+                ),
+              ),
+            ),
+          ),
+        );
       }
     } catch (_) {
       if (mounted) {
@@ -255,9 +274,22 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                     ...place.tips.map(_tipCard),
                   ],
                   const SizedBox(height: 28),
-                  const Text(
-                    'Reviews',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Reviews',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => _showReviewDialog(),
+                        icon: const Icon(Icons.add_comment_outlined, size: 18, color: AppColors.primaryGreen),
+                        label: const Text(
+                          'Write Review',
+                          style: TextStyle(color: AppColors.primaryGreen, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   StreamBuilder<List<Review>>(
@@ -276,7 +308,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                       final reviews = snapshot.data ?? [];
                       if (reviews.isEmpty) {
                         return const Text(
-                          'No reviews yet.',
+                          'No reviews yet. Be the first to write one!',
                           style: TextStyle(color: AppColors.textSecondary),
                         );
                       }
@@ -317,6 +349,9 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
   }
 
   Widget _reviewCard(Review review) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final isMyReview = review.userId == currentUserId;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -361,6 +396,21 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
                     ],
                   ),
                 ),
+                if (isMyReview) ...[
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 20, color: Colors.blue),
+                    onPressed: () => _showReviewDialog(existingReview: review),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                    onPressed: () => _deleteReview(review),
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(4),
+                  ),
+                ],
               ],
             ),
             if (review.comment.isNotEmpty) ...[
@@ -371,6 +421,235 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
         ),
       ),
     );
+  }
+
+  void _showReviewDialog({Review? existingReview}) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to leave a review.')),
+      );
+      return;
+    }
+
+    final isEdit = existingReview != null;
+    int rating = existingReview?.rating ?? 5;
+    final commentController =
+        TextEditingController(text: existingReview?.comment ?? '');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+              ),
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    isEdit ? 'Edit Your Review' : 'Add a Review',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Rating',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      final starRating = index + 1;
+                      return IconButton(
+                        iconSize: 36,
+                        icon: Icon(
+                          starRating <= rating
+                              ? Icons.star
+                              : Icons.star_border,
+                          color: Colors.amber,
+                        ),
+                        onPressed: () {
+                          setModalState(() {
+                            rating = starRating;
+                          });
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Comment',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: commentController,
+                    maxLines: 4,
+                    minLines: 2,
+                    decoration: InputDecoration(
+                      hintText: 'Share your experience, tips, or recommended dishes...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final comment = commentController.text.trim();
+                            if (isEdit) {
+                              await _firestoreService.editReview(
+                                placeId: widget.place.id,
+                                reviewId: existingReview.id,
+                                userId: currentUser.uid,
+                                comment: comment,
+                                rating: rating,
+                              );
+                            } else {
+                              final userName = currentUser.displayName?.trim().isNotEmpty == true
+                                  ? currentUser.displayName!
+                                  : (currentUser.email ?? 'Local traveler');
+                              await _firestoreService.addReview(
+                                placeId: widget.place.id,
+                                userId: currentUser.uid,
+                                userName: userName,
+                                comment: comment,
+                                rating: rating,
+                              );
+                            }
+
+                            if (!context.mounted) return;
+                            context.read<PlaceProvider>().refresh();
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  isEdit
+                                      ? 'Review updated successfully!'
+                                      : 'Review added successfully!',
+                                ),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryGreen,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(isEdit ? 'Update' : 'Submit'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteReview(Review review) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Review'),
+        content: const Text('Are you sure you want to delete this review? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    try {
+      await _firestoreService.deleteReview(
+        placeId: widget.place.id,
+        reviewId: review.id,
+        userId: review.userId,
+      );
+      if (mounted) {
+        context.read<PlaceProvider>().refresh();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Review deleted successfully.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete review.')),
+        );
+      }
+    }
   }
 }
 

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'user_score_service.dart';
 
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -62,6 +63,18 @@ class ChatService {
       'lastMessage': text.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    // Update sender's chatCount and dynamic user score
+    final userRef = _firestore.collection('users').doc(senderId);
+    await _firestore.runTransaction((transaction) async {
+      final userSnapshot = await transaction.get(userRef);
+      if (userSnapshot.exists) {
+        final currentChats =
+            (userSnapshot.data()?['chatCount'] as num?)?.toInt() ?? 0;
+        transaction.update(userRef, {'chatCount': currentChats + 1});
+      }
+    });
+    await UserScoreService().updateUserScore(senderId);
   }
 
   Stream<QuerySnapshot> getMessages(

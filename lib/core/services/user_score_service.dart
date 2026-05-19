@@ -23,9 +23,13 @@ class UserScoreService {
         (chatCount * 1) +
         (rating * 10);
 
+    final isPremium = data['isPremium'] ?? false;
+    final isSuper = isPremium || score >= 100;
+
     await userRef.update({
       'score': score,
-      'isSuperUser': score >= 100,
+      'isSuperUser': isSuper,
+      'pinLimit': isSuper ? 999 : 5,
     });
   }
 }

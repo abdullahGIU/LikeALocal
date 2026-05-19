@@ -32,6 +32,8 @@ class PlaceProvider extends ChangeNotifier {
   List<Place> _allPlaces = [];
   List<Place> _nearbyPlaces = [];
   List<Place> _pinnedPlaces = [];
+  List<Place> _sponsoredPlaces = [];
+  Set<String> _superUserIds = {};
   Position? _userPosition;
   bool _isLoading = false;
   String? _errorMessage;
@@ -40,6 +42,7 @@ class PlaceProvider extends ChangeNotifier {
   List<Place> get allPlaces => _allPlaces;
   List<Place> get nearbyPlaces => _nearbyPlaces;
   List<Place> get pinnedPlaces => _pinnedPlaces;
+  List<Place> get sponsoredPlaces => _sponsoredPlaces;
   Position? get userPosition => _userPosition;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -71,6 +74,9 @@ class PlaceProvider extends ChangeNotifier {
 
       await _loadPinnedPlaces();
 
+      // Fetch super users first to prioritize sorting their posts
+      _superUserIds = await _firestoreService.fetchSuperUserIds();
+
       final firestorePlaces = await _firestoreService.fetchPlaces();
       var discoveredPlaces = <Place>[];
 
@@ -90,6 +96,15 @@ class PlaceProvider extends ChangeNotifier {
       // Community places (user-created) are always visible everywhere;
       // only Mapbox-discovered places without owners are radius-filtered.
       _nearbyPlaces = _filterNearby(_allPlaces);
+
+      _sponsoredPlaces = await _firestoreService.fetchSponsoredPlaces();
+      if (_sponsoredPlaces.isEmpty) {
+        _sponsoredPlaces =
+            _allPlaces.where((p) => p.isSponsored).take(3).toList();
+      }
+      if (_sponsoredPlaces.isEmpty && _allPlaces.isNotEmpty) {
+        _sponsoredPlaces = _allPlaces.take(2).toList();
+      }
     } catch (_) {
       _errorMessage = 'Failed to load places near you.';
     } finally {
@@ -154,7 +169,16 @@ class PlaceProvider extends ChangeNotifier {
 
   List<Place> _filterNearby(List<Place> places) {
     // Always include user-created places (they have an ownerId).
-    final communityPlaces = places.where((p) => p.ownerId.isNotEmpty).toList();
+    final communityPlaces = places.where((p) => p.ownerId.isNotEmpty).toList()
+      ..sort((a, b) {
+        final aSuper = _superUserIds.contains(a.ownerId) ? 1 : 0;
+        final bSuper = _superUserIds.contains(b.ownerId) ? 1 : 0;
+        if (aSuper != bSuper) {
+          return bSuper.compareTo(aSuper); // Super users' posts first
+        }
+        // Secondary sort: rating
+        return b.rating.compareTo(a.rating);
+      });
 
     if (_userPosition == null) {
       // No location: show community places + up to 20 others.
