@@ -6,10 +6,12 @@ import '../../core/services/chat_service.dart';
 
 class ChatRoomScreen extends StatefulWidget {
   final String chatId;
+  final String recipientId;
 
   const ChatRoomScreen({
     super.key,
     required this.chatId,
+    required this.recipientId,
   });
 
   @override
@@ -24,6 +26,12 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   final ChatService _chatService = ChatService();
 
   String get currentUserId => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _chatService.clearUnread(widget.chatId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +133,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                     await _chatService.sendMessage(
                       chatId: widget.chatId,
                       senderId: currentUserId,
+                      recipientId: widget.recipientId,
                       text: text,
                     );
 

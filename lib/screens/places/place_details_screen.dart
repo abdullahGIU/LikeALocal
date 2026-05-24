@@ -152,7 +152,7 @@ class _PlaceDetailsScreenState extends State<PlaceDetailsScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ChatRoomScreen(chatId: chatId),
+        builder: (_) => ChatRoomScreen(chatId: chatId, recipientId: ownerId),
       ),
     );
   }

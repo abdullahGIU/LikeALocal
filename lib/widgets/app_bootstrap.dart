@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -22,6 +25,7 @@ class AppBootstrap extends StatefulWidget {
 class _AppBootstrapState extends State<AppBootstrap> {
   final NearbyMonitorService _nearbyMonitor = NearbyMonitorService();
   bool _initialized = false;
+  StreamSubscription<QuerySnapshot>? _chatSubscription;
 
   @override
   void initState() {
@@ -53,6 +57,37 @@ class _AppBootstrapState extends State<AppBootstrap> {
     places.addListener(_syncNearbyMonitor);
     _syncNearbyMonitor();
     _nearbyMonitor.start();
+
+    if (uid != null) {
+      _startChatMessageListener(uid);
+    }
+  }
+
+  void _startChatMessageListener(String currentUid) {
+    _chatSubscription = FirebaseFirestore.instance
+        .collection('chats')
+        .where('users', arrayContains: currentUid)
+        .snapshots()
+        .listen((snapshot) async {
+      for (final change in snapshot.docChanges) {
+        final data = change.doc.data();
+        if (data == null) continue;
+
+        final unreadFor = data['unreadFor'] as String? ?? '';
+        final lastMessage = data['lastMessage'] as String? ?? '';
+
+        if (unreadFor == currentUid) {
+          await NotificationService.instance.showLocalNotification(
+            title: 'New message',
+            body: lastMessage.isNotEmpty ? lastMessage : 'You have a new message',
+            type: 'chat',
+          );
+          if (mounted) {
+            context.read<NotificationProvider>().load();
+          }
+        }
+      }
+    });
   }
 
   void _syncNearbyMonitor() {
@@ -66,6 +101,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
   void dispose() {
     context.read<PlaceProvider>().removeListener(_syncNearbyMonitor);
     _nearbyMonitor.stop();
+    _chatSubscription?.cancel();
     super.dispose();
   }
 

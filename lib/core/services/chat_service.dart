@@ -46,6 +46,7 @@ class ChatService {
   Future<void> sendMessage({
     required String chatId,
     required String senderId,
+    required String recipientId,
     required String text,
   }) async {
     if (text.trim().isEmpty) return;
@@ -61,6 +62,8 @@ class ChatService {
 
     await _firestore.collection('chats').doc(chatId).update({
       'lastMessage': text.trim(),
+      'lastSenderId': senderId,
+      'unreadFor': recipientId,
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
@@ -75,6 +78,12 @@ class ChatService {
       }
     });
     await UserScoreService().updateUserScore(senderId);
+  }
+
+  Future<void> clearUnread(String chatId) async {
+    await _firestore.collection('chats').doc(chatId).update({
+      'unreadFor': '',
+    });
   }
 
   Stream<QuerySnapshot> getMessages(

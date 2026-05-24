@@ -26,7 +26,7 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         children: [
-          _SectionHeader('Notifications'),
+          const _SectionHeader('Notifications'),
           SwitchListTile(
             title: const Text('Enable notifications'),
             subtitle: const Text('Push and local alerts'),
@@ -53,7 +53,7 @@ class SettingsScreen extends StatelessWidget {
               final pinned = context.read<PlaceProvider>().pinnedPlaces;
               await NearbyMonitorService().triggerDemoNotification(pinned);
               if (context.mounted) {
-                await context.read<NotificationProvider>().load();
+                context.read<NotificationProvider>().load();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Nearby notification sent')),
                 );
@@ -66,7 +66,7 @@ class SettingsScreen extends StatelessWidget {
             onTap: () async {
               await NotificationService.instance.sendTestNotification();
               if (context.mounted) {
-                await context.read<NotificationProvider>().load();
+                context.read<NotificationProvider>().load();
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Test notification sent')),
                 );
@@ -74,7 +74,7 @@ class SettingsScreen extends StatelessWidget {
             },
           ),
           const Divider(),
-          _SectionHeader('AI & recommendations'),
+          const _SectionHeader('AI & recommendations'),
           ListTile(
             leading: const Icon(Icons.auto_awesome),
             title: const Text('AI local guide'),
@@ -122,7 +122,7 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const Divider(),
-          _SectionHeader('Chat & privacy'),
+          const _SectionHeader('Chat & privacy'),
           ListTile(
             leading: const Icon(Icons.privacy_tip_outlined),
             title: const Text('Chat privacy'),
@@ -133,7 +133,7 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const Divider(),
-          _SectionHeader('Premium'),
+          const _SectionHeader('Premium'),
           ListTile(
             leading: const Icon(Icons.workspace_premium, color: Colors.amber),
             title: const Text('Subscription plans'),

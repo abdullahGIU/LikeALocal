@@ -136,9 +136,9 @@ class SubscriptionScreen extends StatelessWidget {
               ),
             )
           else
-            OutlinedButton(
+            const OutlinedButton(
               onPressed: null,
-              child: const Text('Current plan'),
+              child: Text('Current plan'),
             ),
           const SizedBox(height: 12),
           Text(

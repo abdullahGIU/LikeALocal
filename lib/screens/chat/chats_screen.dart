@@ -169,7 +169,7 @@ class ChatsScreen extends StatelessWidget {
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) =>
-                                      ChatRoomScreen(chatId: chatId),
+                                      ChatRoomScreen(chatId: chatId, recipientId: peerId),
                                 ),
                               );
                             },

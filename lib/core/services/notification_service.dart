@@ -169,7 +169,7 @@ class NotificationService {
 
     await _saveNotification(notification);
 
-    final androidDetails = AndroidNotificationDetails(
+    const androidDetails = AndroidNotificationDetails(
       _channelId,
       _channelName,
       importance: Importance.high,
@@ -181,7 +181,7 @@ class NotificationService {
       notification.id.hashCode,
       title,
       body,
-      NotificationDetails(android: androidDetails, iOS: iosDetails),
+      const NotificationDetails(android: androidDetails, iOS: iosDetails),
       payload: jsonEncode(notification.toJson()),
     );
   }
